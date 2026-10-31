@@ -1,0 +1,860 @@
+<!doctype html>
+<!--
+  ==========================================================================
+  Tessera — QR Code Generator
+  --------------------------------------------------------------------------
+  Open this file directly in a browser. No build step or server needed.
+  Styling lives in assets/css/style.css. The QR encoder is assets/js/qrcode.js
+  and the app behaviour is assets/js/app.js (loaded in that order).
+
+  LAYOUT MAP
+    0. sprite     — shared SVG icons (referenced with <use href="#i-NAME">)
+    1. topbar     — brand, help button, theme button
+    2. workspace  — three cards. Phones stack them; desktop puts the preview on the right.
+         01 content  — type picker + one field group per type (link, Wi-Fi, contact…)
+         preview     — the live code, details, warnings, scan check and downloads
+         02 style    — error correction, colors, shape, margin, PNG size
+    3. overlays   — help dialog, toast, screen-reader announcer
+  ==========================================================================
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Tessera — QR Code Generator</title>
+    <meta
+      name="description"
+      content="Make QR codes for links, Wi-Fi, contacts, email, phone and SMS. Download PNG or SVG. Runs entirely in your browser."
+    />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#101317" media="(prefers-color-scheme: dark)" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%23ffffff'/%3E%3Cpath d='M4 4h10v10H4zM18 4h10v10H18zM4 18h10v10H4z' fill='none' stroke='%230a7a52' stroke-width='2.5'/%3E%3Cpath d='M8 8h2v2H8zM22 8h2v2h-2zM8 22h2v2H8zM18 18h4v4h-4zM24 24h4v4h-4zM24 18h4v2h-4z' fill='%230a7a52'/%3E%3C/svg%3E"
+    />
+
+    <!-- Apply the saved theme before first paint so the page never flashes the wrong colors. -->
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem('tessera-theme');
+          if (theme === 'light' || theme === 'dark')
+            document.documentElement.setAttribute('data-theme', theme);
+        } catch (error) {
+          // Storage is blocked (private mode / strict settings): the system theme is used instead.
+        }
+      })();
+    </script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
+    />
+    <link rel="stylesheet" href="assets/css/style.css" />
+  </head>
+  <body>
+    <!--
+      ICON SPRITE — every icon is drawn once here and reused with
+      <svg class="icon"><use href="#i-NAME"/></svg>. Stroke style comes from .icon in style.css.
+    -->
+    <svg class="sprite" aria-hidden="true" focusable="false">
+      <symbol id="i-help" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" />
+        <path d="M12 17h.01" />
+      </symbol>
+      <symbol id="i-theme-auto" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor" />
+      </symbol>
+      <symbol id="i-theme-light" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4" />
+        <path
+          d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"
+        />
+      </symbol>
+      <symbol id="i-theme-dark" viewBox="0 0 24 24">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12" /></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24">
+        <path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7" />
+        <path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7" />
+      </symbol>
+      <symbol id="i-wifi" viewBox="0 0 24 24">
+        <path d="M2 8.8a15 15 0 0 1 20 0" />
+        <path d="M5 12.5a10 10 0 0 1 14 0" />
+        <path d="M8.5 16a5 5 0 0 1 7 0" />
+        <path d="M12 20h.01" />
+      </symbol>
+      <symbol id="i-user" viewBox="0 0 24 24">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21a8 8 0 0 1 16 0" />
+      </symbol>
+      <symbol id="i-mail" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="m3 7 9 6 9-6" />
+      </symbol>
+      <symbol id="i-phone" viewBox="0 0 24 24">
+        <path
+          d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"
+        />
+      </symbol>
+      <symbol id="i-sms" viewBox="0 0 24 24">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </symbol>
+      <symbol id="i-upload" viewBox="0 0 24 24">
+        <path d="M12 21V9" />
+        <path d="m7 14 5-5 5 5" />
+        <path d="M5 3h14" />
+      </symbol>
+      <symbol id="i-download" viewBox="0 0 24 24">
+        <path d="M12 3v12" />
+        <path d="m7 10 5 5 5-5" />
+        <path d="M5 21h14" />
+      </symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24">
+        <rect x="9" y="9" width="12" height="12" rx="2" />
+        <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" />
+      </symbol>
+      <symbol id="i-swap" viewBox="0 0 24 24">
+        <path d="M7 4 3 8l4 4" />
+        <path d="M3 8h14" />
+        <path d="m17 20 4-4-4-4" />
+        <path d="M21 16H7" />
+      </symbol>
+      <symbol id="i-reset" viewBox="0 0 24 24">
+        <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+        <path d="M3 3v5h5" />
+      </symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24">
+        <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z" />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="i-eye-off" viewBox="0 0 24 24">
+        <path d="M10.7 5.1A10 10 0 0 1 12 5c6.5 0 10 7 10 7a17 17 0 0 1-2.2 3.2" />
+        <path d="M6.6 6.6A17 17 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6" />
+        <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+        <path d="m2 2 20 20" />
+      </symbol>
+      <symbol id="i-clear" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="9" />
+        <path d="m15 9-6 6M9 9l6 6" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5" /></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24">
+        <path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+        <path d="M12 9v4M12 17h.01" />
+      </symbol>
+    </svg>
+
+    <a class="skip-link" href="#contentTitle">Skip to the form</a>
+    <noscript
+      ><p class="noscript">
+        Tessera needs JavaScript to make QR codes. Please enable it and reload.
+      </p></noscript
+    >
+
+    <!-- ===================== 1. TOP BAR ===================== -->
+    <header class="topbar">
+      <span class="brand"
+        ><span class="brand-prompt" aria-hidden="true">&gt;</span> tessera<span
+          class="brand-caret"
+          aria-hidden="true"
+        ></span
+      ></span>
+      <span class="brand-tag">qr code generator</span>
+
+      <div class="topbar-actions">
+        <button id="helpBtn" class="icon-btn" type="button" aria-label="Help" title="Help (?)">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-help" /></svg>
+        </button>
+        <!-- Icon and label are set by app.js (section 15) to match the current theme. -->
+        <button id="themeBtn" class="icon-btn" type="button" aria-label="Theme"></button>
+      </div>
+    </header>
+
+    <!-- ===================== 2. WORKSPACE ===================== -->
+    <main class="workspace">
+      <h1 class="sr-only">Tessera QR code generator</h1>
+
+      <!-- ---------- 01 CONTENT ---------- -->
+      <section class="card card--content" aria-labelledby="contentTitle">
+        <h2 id="contentTitle" class="card-title" tabindex="-1"><span class="card-num">01</span> content</h2>
+
+        <!-- One radio per type. app.js shows the matching .type-panel (data-panel). -->
+        <fieldset class="type-picker">
+          <legend class="sr-only">What should the code contain?</legend>
+          <label class="type-option">
+            <input class="type-input" type="radio" name="type" value="text" checked />
+            <span class="type-chip"
+              ><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-link" /></svg> link /
+              text</span
+            >
+          </label>
+          <label class="type-option">
+            <input class="type-input" type="radio" name="type" value="wifi" />
+            <span class="type-chip"
+              ><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-wifi" /></svg> wi-fi</span
+            >
+          </label>
+          <label class="type-option">
+            <input class="type-input" type="radio" name="type" value="contact" />
+            <span class="type-chip"
+              ><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-user" /></svg>
+              contact</span
+            >
+          </label>
+          <label class="type-option">
+            <input class="type-input" type="radio" name="type" value="email" />
+            <span class="type-chip"
+              ><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-mail" /></svg> email</span
+            >
+          </label>
+          <label class="type-option">
+            <input class="type-input" type="radio" name="type" value="phone" />
+            <span class="type-chip"
+              ><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
+              phone</span
+            >
+          </label>
+          <label class="type-option">
+            <input class="type-input" type="radio" name="type" value="sms" />
+            <span class="type-chip"
+              ><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-sms" /></svg> sms</span
+            >
+          </label>
+        </fieldset>
+
+        <!--
+          Field groups. Every input has data-type + data-key, matching state.content[type][key]
+          in app.js (section 05). Add a field by adding an input here and the key in DEFAULT_CONTENT.
+        -->
+        <div class="type-panel" data-panel="text">
+          <div class="field">
+            <label class="field-label" for="textInput">Link or text</label>
+            <textarea
+              id="textInput"
+              class="field-input field-input--area"
+              data-type="text"
+              data-key="text"
+              rows="4"
+              placeholder="https://example.com"
+              spellcheck="false"
+              aria-describedby="textHint"
+            ></textarea>
+            <p id="textHint" class="field-hint">
+              Links open in the phone's browser; any other text is just shown.
+            </p>
+          </div>
+          <!-- Shown when the text looks like a web address without https:// (app.js section 06). -->
+          <p id="httpsTip" class="tip" hidden>
+            <span>Looks like a web address. Add <code>https://</code> so phones open it as a link.</span>
+            <button id="httpsBtn" class="btn btn-small" type="button">add https://</button>
+          </p>
+        </div>
+
+        <div class="type-panel" data-panel="wifi" hidden>
+          <div class="field-grid">
+            <div class="field field--full">
+              <label class="field-label" for="wifiSsid">Network name (SSID)</label>
+              <input
+                id="wifiSsid"
+                class="field-input"
+                type="text"
+                data-type="wifi"
+                data-key="ssid"
+                autocomplete="off"
+                spellcheck="false"
+                maxlength="64"
+                placeholder="Home-Network"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="wifiSecurity">Security</label>
+              <select id="wifiSecurity" class="field-input" data-type="wifi" data-key="security">
+                <option value="WPA">WPA / WPA2 / WPA3</option>
+                <option value="WEP">WEP (old)</option>
+                <option value="nopass">None (open network)</option>
+              </select>
+            </div>
+            <div class="field">
+              <label class="field-label" for="wifiPassword">Password</label>
+              <div class="field-with-button">
+                <input
+                  id="wifiPassword"
+                  class="field-input"
+                  type="password"
+                  data-type="wifi"
+                  data-key="password"
+                  autocomplete="new-password"
+                  spellcheck="false"
+                  maxlength="63"
+                  aria-describedby="wifiPasswordHint"
+                />
+                <button
+                  id="wifiShowBtn"
+                  class="icon-btn field-button"
+                  type="button"
+                  aria-label="Show password"
+                  aria-pressed="false"
+                  aria-controls="wifiPassword"
+                >
+                  <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-eye" /></svg>
+                </button>
+              </div>
+              <p id="wifiPasswordHint" class="field-hint">Never saved — only used to draw the code.</p>
+            </div>
+            <label class="check field--full">
+              <input class="check-input" type="checkbox" data-type="wifi" data-key="hidden" />
+              <span>Hidden network (doesn't broadcast its name)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="type-panel" data-panel="contact" hidden>
+          <div class="field-grid">
+            <div class="field">
+              <label class="field-label" for="vcFirst">First name</label>
+              <input
+                id="vcFirst"
+                class="field-input"
+                type="text"
+                data-type="contact"
+                data-key="first"
+                autocomplete="given-name"
+                maxlength="80"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="vcLast">Last name</label>
+              <input
+                id="vcLast"
+                class="field-input"
+                type="text"
+                data-type="contact"
+                data-key="last"
+                autocomplete="family-name"
+                maxlength="80"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="vcPhone">Phone</label>
+              <input
+                id="vcPhone"
+                class="field-input"
+                type="tel"
+                data-type="contact"
+                data-key="phone"
+                autocomplete="tel"
+                maxlength="40"
+                placeholder="+1 555 010 0199"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="vcEmail">Email</label>
+              <input
+                id="vcEmail"
+                class="field-input"
+                type="email"
+                data-type="contact"
+                data-key="email"
+                autocomplete="email"
+                maxlength="120"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="vcOrg">Company</label>
+              <input
+                id="vcOrg"
+                class="field-input"
+                type="text"
+                data-type="contact"
+                data-key="org"
+                autocomplete="organization"
+                maxlength="120"
+              />
+            </div>
+            <div class="field">
+              <label class="field-label" for="vcTitle">Job title</label>
+              <input
+                id="vcTitle"
+                class="field-input"
+                type="text"
+                data-type="contact"
+                data-key="title"
+                autocomplete="organization-title"
+                maxlength="120"
+              />
+            </div>
+            <div class="field field--full">
+              <label class="field-label" for="vcUrl">Website</label>
+              <input
+                id="vcUrl"
+                class="field-input"
+                type="url"
+                data-type="contact"
+                data-key="url"
+                autocomplete="url"
+                maxlength="200"
+                placeholder="https://"
+              />
+            </div>
+          </div>
+          <p class="field-hint">Scanning adds this person to the phone's contacts (vCard 3.0).</p>
+        </div>
+
+        <div class="type-panel" data-panel="email" hidden>
+          <div class="field-grid">
+            <div class="field field--full">
+              <label class="field-label" for="mailTo">To</label>
+              <input
+                id="mailTo"
+                class="field-input"
+                type="email"
+                data-type="email"
+                data-key="to"
+                autocomplete="email"
+                maxlength="120"
+                placeholder="name@example.com"
+              />
+            </div>
+            <div class="field field--full">
+              <label class="field-label" for="mailSubject"
+                >Subject <span class="optional">optional</span></label
+              >
+              <input
+                id="mailSubject"
+                class="field-input"
+                type="text"
+                data-type="email"
+                data-key="subject"
+                maxlength="200"
+              />
+            </div>
+            <div class="field field--full">
+              <label class="field-label" for="mailBody">Message <span class="optional">optional</span></label>
+              <textarea
+                id="mailBody"
+                class="field-input field-input--area"
+                data-type="email"
+                data-key="body"
+                rows="3"
+                maxlength="1000"
+              ></textarea>
+            </div>
+          </div>
+          <p class="field-hint">Scanning opens a new email, ready to send.</p>
+        </div>
+
+        <div class="type-panel" data-panel="phone" hidden>
+          <div class="field">
+            <label class="field-label" for="telNumber">Phone number</label>
+            <input
+              id="telNumber"
+              class="field-input"
+              type="tel"
+              data-type="phone"
+              data-key="number"
+              autocomplete="tel"
+              maxlength="40"
+              placeholder="+1 555 010 0199"
+              aria-describedby="telHint"
+            />
+            <p id="telHint" class="field-hint">
+              Include the country code (+1, +44, +63…) so it works from anywhere. Scanning offers to call.
+            </p>
+          </div>
+        </div>
+
+        <div class="type-panel" data-panel="sms" hidden>
+          <div class="field-grid">
+            <div class="field field--full">
+              <label class="field-label" for="smsNumber">Phone number</label>
+              <input
+                id="smsNumber"
+                class="field-input"
+                type="tel"
+                data-type="sms"
+                data-key="number"
+                autocomplete="tel"
+                maxlength="40"
+                placeholder="+1 555 010 0199"
+              />
+            </div>
+            <div class="field field--full">
+              <label class="field-label" for="smsMessage"
+                >Message <span class="optional">optional</span></label
+              >
+              <textarea
+                id="smsMessage"
+                class="field-input field-input--area"
+                data-type="sms"
+                data-key="message"
+                rows="3"
+                maxlength="500"
+              ></textarea>
+            </div>
+          </div>
+          <p class="field-hint">Scanning opens a text message, ready to send.</p>
+        </div>
+
+        <div class="card-foot">
+          <button id="clearBtn" class="btn btn-ghost" type="button">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-clear" /></svg> clear fields
+          </button>
+        </div>
+      </section>
+
+      <!-- ---------- PREVIEW ---------- -->
+      <section class="card card--preview" aria-labelledby="previewTitle">
+        <h2 id="previewTitle" class="card-title"><span class="card-num">&gt;</span> preview</h2>
+
+        <!-- The code itself (an <svg> made by app.js section 09), or a placeholder message. -->
+        <div id="qrFrame" class="qr-frame is-empty">
+          <p id="qrMessage" class="qr-message" role="status" aria-live="polite">
+            Type a link or some text to make a code
+          </p>
+        </div>
+
+        <p id="qrInfo" class="qr-info" hidden></p>
+
+        <!-- Read-back test with the browser's own barcode reader (where available). -->
+        <p id="scanStatus" class="scan-status" hidden></p>
+
+        <ul id="warningList" class="warnings" aria-label="Warnings" hidden></ul>
+
+        <div class="export">
+          <button id="pngBtn" class="btn btn-primary" type="button" aria-disabled="true">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg> png
+          </button>
+          <button id="svgBtn" class="btn" type="button" aria-disabled="true">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-download" /></svg> svg
+          </button>
+          <button id="copyBtn" class="btn" type="button" aria-disabled="true">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-copy" /></svg> copy
+          </button>
+        </div>
+
+        <details class="payload">
+          <summary class="payload-summary">what's inside the code</summary>
+          <pre id="payloadText" class="payload-text">(nothing yet)</pre>
+        </details>
+      </section>
+
+      <!-- ---------- 02 STYLE ---------- -->
+      <section class="card card--style" aria-labelledby="styleTitle">
+        <h2 id="styleTitle" class="card-title"><span class="card-num">02</span> style</h2>
+
+        <div class="field-grid">
+          <div class="field">
+            <label class="field-label" for="eccSelect">Error correction</label>
+            <select id="eccSelect" class="field-input" data-style="ecc" aria-describedby="eccHint">
+              <option value="L">L — low (7%)</option>
+              <option value="M">M — medium (15%)</option>
+              <option value="Q">Q — quartile (25%)</option>
+              <option value="H">H — high (30%)</option>
+            </select>
+            <!-- app.js (section 07) swaps this text while a center symbol forces level H. -->
+            <p id="eccHint" class="field-hint">How much damage the code survives. Higher = denser.</p>
+          </div>
+
+          <div class="field">
+            <label class="field-label" for="pngSizeSelect">PNG size</label>
+            <select
+              id="pngSizeSelect"
+              class="field-input"
+              data-style="pngSize"
+              aria-describedby="pngSizeHint"
+            >
+              <option value="256">small (~256 px)</option>
+              <option value="512">medium (~512 px)</option>
+              <option value="1024">large (~1024 px)</option>
+              <option value="2048">print (~2048 px)</option>
+            </select>
+            <p id="pngSizeHint" class="field-hint">Rounded so every module is whole pixels (sharp edges).</p>
+          </div>
+
+          <fieldset class="field field--full color-set">
+            <legend class="field-label">Colors</legend>
+            <div class="color-row">
+              <label class="color-field">
+                <input id="fgInput" class="color-input" type="color" data-style="fg" value="#000000" />
+                <span class="color-text"
+                  ><span class="color-name">code</span> <code id="fgHex">#000000</code></span
+                >
+              </label>
+              <label class="color-field">
+                <input id="bgInput" class="color-input" type="color" data-style="bg" value="#ffffff" />
+                <span class="color-text"
+                  ><span class="color-name">background</span> <code id="bgHex">#ffffff</code></span
+                >
+              </label>
+              <button
+                id="swapBtn"
+                class="icon-btn"
+                type="button"
+                aria-label="Swap code and background colors"
+                title="Swap colors"
+              >
+                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-swap" /></svg>
+              </button>
+            </div>
+            <p id="contrastText" class="field-hint">contrast 21.0 : 1</p>
+            <label class="check">
+              <input class="check-input" type="checkbox" data-style="transparent" />
+              <span>Transparent background (PNG and SVG)</span>
+            </label>
+          </fieldset>
+
+          <fieldset class="field field--full">
+            <legend class="field-label">Module shape</legend>
+            <div class="segmented">
+              <label class="segment">
+                <input class="segment-input" type="radio" name="shape" value="square" data-style="shape" />
+                <span class="segment-label">square</span>
+              </label>
+              <label class="segment">
+                <input class="segment-input" type="radio" name="shape" value="rounded" data-style="shape" />
+                <span class="segment-label">rounded</span>
+              </label>
+              <label class="segment">
+                <input class="segment-input" type="radio" name="shape" value="dots" data-style="shape" />
+                <span class="segment-label">dots</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <!-- Center symbol: icons are drawn by app.js (section 09); "image" shows the upload row. -->
+          <div class="field field--full">
+            <label class="field-label" for="logoSelect">Center symbol</label>
+            <select id="logoSelect" class="field-input" data-style="logo" aria-describedby="logoHint">
+              <option value="none">none</option>
+              <option value="auto">match the type (link, wi-fi, phone…)</option>
+              <option value="wifi">wi-fi</option>
+              <option value="link">link</option>
+              <option value="phone">phone</option>
+              <option value="mail">email</option>
+              <option value="user">person</option>
+              <option value="sms">message</option>
+              <option value="heart">heart</option>
+              <option value="star">star</option>
+              <option value="image">your own image…</option>
+            </select>
+            <div id="logoUpload" class="logo-upload" hidden>
+              <button id="logoChooseBtn" class="btn btn-small" type="button">
+                <svg class="icon icon--small" aria-hidden="true" focusable="false">
+                  <use href="#i-upload" />
+                </svg>
+                choose image
+              </button>
+              <span id="logoFileName" class="logo-file-name">no image yet</span>
+              <input
+                id="logoFile"
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                aria-label="Image for the center of the code"
+                hidden
+              />
+            </div>
+            <p id="logoHint" class="field-hint">
+              A small symbol in the middle. Error correction goes up to H so the code still scans.
+            </p>
+          </div>
+
+          <div class="field field--full">
+            <!-- The <output> sits outside the <label>: a label may name only one control. -->
+            <div class="field-label">
+              <label for="marginInput">Margin (quiet zone)</label>
+              <output id="marginValue" for="marginInput">4</output>
+            </div>
+            <input
+              id="marginInput"
+              class="range-input"
+              type="range"
+              min="0"
+              max="8"
+              step="1"
+              data-style="margin"
+              aria-describedby="marginHint"
+            />
+            <p id="marginHint" class="field-hint">
+              Blank border, in modules. Scanners need 4; less is fine only on a plain light background.
+            </p>
+          </div>
+        </div>
+
+        <div class="card-foot">
+          <button id="resetStyleBtn" class="btn btn-ghost" type="button">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-reset" /></svg> reset style
+          </button>
+        </div>
+      </section>
+    </main>
+
+    <!-- ===================== 3. OVERLAYS ===================== -->
+
+    <!-- Help guide. Plain HTML: edit the text directly (see README → "Edit the help guide"). -->
+    <dialog id="helpDialog" class="dialog dialog--wide" aria-labelledby="helpTitle">
+      <div class="dialog-bar">
+        <span class="dialog-dots" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span class="dialog-title dialog-path" aria-hidden="true">~/tessera/help.md</span>
+        <button class="icon-btn dialog-close" type="button" data-close aria-label="Close help">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-close" /></svg>
+        </button>
+      </div>
+      <div class="dialog-body help">
+        <p class="help-kicker"># readme</p>
+        <h2 id="helpTitle" class="help-title">What is Tessera?</h2>
+        <p class="help-lead">
+          Tessera makes QR codes: square barcodes a phone camera can read. Choose what the code holds, style
+          it, and download it as a PNG image or an SVG file. Everything happens in your browser: nothing is
+          uploaded.
+        </p>
+
+        <section class="help-section">
+          <h3 class="help-heading"><span class="help-num">01</span> Quick start</h3>
+          <ol class="help-steps">
+            <li>Pick a type in <b>01 content</b>: link, Wi-Fi, contact, email, phone or SMS.</li>
+            <li>Fill in the fields. The preview updates as you type.</li>
+            <li>
+              Change colors and shape in <b>02 style</b> if you like, and add a <b>center symbol</b> (a
+              built-in icon or your own logo).
+            </li>
+            <li>Click <b>png</b> or <b>svg</b> to download, or <b>copy</b> to paste it somewhere.</li>
+            <li>Test it with your phone's camera before you print or share it.</li>
+          </ol>
+        </section>
+
+        <section class="help-section">
+          <h3 class="help-heading"><span class="help-num">02</span> What each type does when scanned</h3>
+          <dl class="help-defs">
+            <div>
+              <dt>link / text</dt>
+              <dd>A link opens in the browser. Other text is shown on screen.</dd>
+            </div>
+            <div>
+              <dt>wi-fi</dt>
+              <dd>Offers to join the network. No need to type the password.</dd>
+            </div>
+            <div>
+              <dt>contact</dt>
+              <dd>Offers to save a new contact with the details you entered.</dd>
+            </div>
+            <div>
+              <dt>email</dt>
+              <dd>Opens a new email to that address, with the subject and message filled in.</dd>
+            </div>
+            <div>
+              <dt>phone</dt>
+              <dd>Offers to call the number.</dd>
+            </div>
+            <div>
+              <dt>sms</dt>
+              <dd>Opens a text message to the number, with your message filled in.</dd>
+            </div>
+          </dl>
+          <p class="help-note">Open <b>what's inside the code</b> under the preview to see the exact text.</p>
+        </section>
+
+        <section class="help-section">
+          <h3 class="help-heading"><span class="help-num">03</span> Making codes that always scan</h3>
+          <ul class="help-list">
+            <li>
+              <b>Size:</b> print it at least 2 cm (0.8 in) wide, and bigger for long text or far-away scanning
+              (about 1/10 of the scanning distance).
+            </li>
+            <li><b>Contrast:</b> dark code on a light background works everywhere. Light-on-dark doesn't.</li>
+            <li>
+              <b>Margin:</b> keep the blank border (4 modules) unless the background is plain and light.
+            </li>
+            <li>
+              <b>Error correction:</b> <b>M</b> suits most uses. Choose <b>H</b> for printed codes that may
+              get scratched or dirty. Higher levels make the code denser.
+            </li>
+            <li>
+              <b>Center symbol:</b> it covers part of the code, so Tessera switches to level <b>H</b> while
+              it's shown. Use <b>rounded</b> or <b>square</b> modules with a symbol on long codes; dots with a
+              symbol only scan reliably on short ones. On very long codes (about 470+ characters), skip the
+              symbol.
+            </li>
+            <li>
+              <b>Shorter is better:</b> less text means bigger squares, which scan faster. Use a short link
+              where you can.
+            </li>
+            <li>
+              <b>Scan check:</b> in browsers with a built-in barcode reader (such as Chrome), Tessera reads
+              every code back and tells you if it worked.
+            </li>
+          </ul>
+        </section>
+
+        <section class="help-section">
+          <h3 class="help-heading"><span class="help-num">04</span> Files</h3>
+          <dl class="help-defs">
+            <div>
+              <dt>png</dt>
+              <dd>
+                An image for documents, slides, websites and messages. Pick the size in <b>02 style</b>.
+              </dd>
+            </div>
+            <div>
+              <dt>svg</dt>
+              <dd>A vector file that stays sharp at any size. Best for print and design tools.</dd>
+            </div>
+            <div>
+              <dt>copy</dt>
+              <dd>Copies the PNG image so you can paste it into a document or chat.</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="help-section">
+          <h3 class="help-heading"><span class="help-num">05</span> Privacy</h3>
+          <ul class="help-list">
+            <li>The codes are made on your device. Nothing you type is sent anywhere.</li>
+            <li>Your last content and style are remembered in this browser, so they're back next time.</li>
+            <li>The <b>Wi-Fi password is never saved</b>. Type it again when you come back.</li>
+            <li>
+              An image you add as a center symbol is shrunk to 256 px and remembered in this browser only.
+            </li>
+          </ul>
+        </section>
+
+        <section class="help-section">
+          <h3 class="help-heading"><span class="help-num">06</span> Keyboard shortcuts</h3>
+          <dl class="help-defs">
+            <div>
+              <dt><kbd>Ctrl/⌘</kbd> <kbd>S</kbd></dt>
+              <dd>Download the PNG</dd>
+            </div>
+            <div>
+              <dt><kbd>?</kbd></dt>
+              <dd>This guide (when you're not typing in a field)</dd>
+            </div>
+            <div>
+              <dt><kbd>Esc</kbd></dt>
+              <dd>Close this guide</dd>
+            </div>
+          </dl>
+        </section>
+      </div>
+      <div class="dialog-foot">
+        <span class="dialog-hint">press <kbd>Esc</kbd> to close</span>
+        <button class="btn btn-primary" type="button" data-close>got it</button>
+      </div>
+      <p class="sr-only dialog-status" role="status" aria-live="polite"></p>
+    </dialog>
+
+    <!-- Short confirmation message. Shown by app.js (section 14). -->
+    <div id="toast" class="toast" hidden></div>
+    <!-- Screen-reader announcements. -->
+    <p id="announcer" class="sr-only" role="status" aria-live="polite"></p>
+
+    <script src="assets/js/qrcode.js"></script>
+    <script src="assets/js/app.js"></script>
+  </body>
+</html>

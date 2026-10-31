@@ -1,0 +1,1245 @@
+/* ==========================================================================
+   Tessera — style.css
+   --------------------------------------------------------------------------
+   Mobile-first: base rules target phones; wider screens are added in
+   section 12. App colors, fonts and sizes come from the tokens in
+   section 01. The QR code itself is drawn in the colors the user picks,
+   never in theme colors.
+
+   TABLE OF CONTENTS
+     01  Design tokens (light + dark themes)
+     02  Base & reset
+     03  Accessibility helpers (sr-only, skip link, noscript)
+     04  Top bar & brand
+     05  Buttons
+     06  Workspace & cards
+     07  Type picker
+     08  Fields
+     09  Style controls (colors, shape, margin)
+     10  Preview (code, details, scan check, warnings, export)
+     11  Dialogs, help & toast
+     12  Breakpoints (≥600px tablet, ≥900px desktop two-column)
+     13  Reduced motion
+   ========================================================================== */
+
+/* ==========================================================================
+   01  DESIGN TOKENS
+   The dark theme appears TWICE: once for the manual "dark" setting and once
+   for "auto" when the system is dark. Keep both blocks identical.
+   Text colors meet WCAG 2.1 AA (≥ 4.5:1) on --bg, --surface and --subtle.
+   ========================================================================== */
+:root {
+  /* Surfaces */
+  --bg: #f6f8fa;
+  --surface: #fff;
+  --subtle: #eff2f5;
+  --hover: #e8ecf0;
+  --border: #dde2e7;
+  --border-strong: #c9d0d7;
+
+  /* Text */
+  --text: #0e1116;
+  --muted: #4f5964;
+  --faint: #5f6973;
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%234f5964' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); /* chevron in --muted */
+
+  /* Accent */
+  --accent: #0a7a52;
+  --on-accent: #fff;
+  --danger: #c62832;
+  --warn: #8a5a00;
+  --warn-bg: #fff6e0;
+  --checker: #e3e7eb; /* checkerboard behind transparent codes */
+
+  /* Type */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Shape & spacing */
+  --radius: 10px;
+  --radius-sm: 6px;
+  --gutter: 16px;
+  --topbar: 52px;
+  --control: 40px; /* height of buttons/fields */
+
+  /* Effects */
+  --shadow: 0 12px 40px rgb(15 20 25 / 16%);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  color-scheme: light;
+}
+
+/* Manual dark theme */
+:root[data-theme='dark'] {
+  --bg: #0b0d10;
+  --surface: #101317;
+  --subtle: #161a1f;
+  --hover: #1c2127;
+  --border: #242a31;
+  --border-strong: #323a43;
+  --text: #e6edf3;
+  --muted: #a3adb8;
+  --faint: #8b95a1;
+  --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3adb8' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  --accent: #3ddc97;
+  --on-accent: #04140d;
+  --danger: #ff7b72;
+  --warn: #f0b429;
+  --warn-bg: #241c07;
+  --checker: #2a3038;
+  --shadow: 0 12px 40px rgb(0 0 0 / 50%);
+
+  color-scheme: dark;
+}
+
+/* "Auto" theme when the system is dark (same values as above) */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0b0d10;
+    --surface: #101317;
+    --subtle: #161a1f;
+    --hover: #1c2127;
+    --border: #242a31;
+    --border-strong: #323a43;
+    --text: #e6edf3;
+    --muted: #a3adb8;
+    --faint: #8b95a1;
+    --select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3adb8' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    --accent: #3ddc97;
+    --on-accent: #04140d;
+    --danger: #ff7b72;
+    --warn: #f0b429;
+    --warn-bg: #241c07;
+    --checker: #2a3038;
+    --shadow: 0 12px 40px rgb(0 0 0 / 50%);
+
+    color-scheme: dark;
+  }
+}
+
+/* ==========================================================================
+   02  BASE & RESET
+   ========================================================================== */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html {
+  /* Stops iOS enlarging text in landscape. Safari still needs the prefix. */
+  /* stylelint-disable-next-line property-no-vendor-prefix */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 14px/1.5 var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+svg {
+  flex-shrink: 0;
+}
+
+/* Icons: <svg class="icon"><use href="#i-NAME"/></svg> (shapes live in the sprite in index.html) */
+.icon {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon--small {
+  width: 14px;
+  height: 14px;
+}
+
+/* The sprite only holds <symbol> definitions; it never renders itself */
+.sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* One focus style everywhere (keyboard only) */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+kbd,
+code {
+  font: 500 11px/1.6 var(--font-mono);
+}
+
+kbd {
+  display: inline-block;
+  min-width: 1.6em;
+  padding: 0 5px;
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  text-align: center;
+}
+
+code {
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--subtle);
+}
+
+/* ==========================================================================
+   03  ACCESSIBILITY HELPERS
+   ========================================================================== */
+
+/* Hidden visually but still read by screen readers */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* "Skip to the form" link: appears only when focused with the keyboard */
+.skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 100;
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  font: 500 13px var(--font-mono);
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+/* Message shown only when JavaScript is off */
+.noscript {
+  margin: 0;
+  padding: 12px var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--subtle);
+  color: var(--danger);
+  font: 500 13px var(--font-mono);
+}
+
+/* ==========================================================================
+   04  TOP BAR & BRAND
+   ========================================================================== */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: var(--topbar);
+  padding: 0 var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.brand {
+  font: 600 15px var(--font-mono);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.brand-prompt {
+  color: var(--accent);
+}
+
+/* Blinking terminal cursor */
+.brand-caret {
+  display: inline-block;
+  width: 8px;
+  height: 15px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--accent);
+  animation: blink 1.1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* "qr code generator" tag — shown from 600px (section 12) */
+.brand-tag {
+  display: none;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+  color: var(--faint);
+  font: 12px var(--font-mono);
+}
+
+.topbar-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+/* ==========================================================================
+   05  BUTTONS
+   ========================================================================== */
+
+/* Square icon-only button */
+.icon-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  width: var(--control);
+  height: var(--control);
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+
+.icon-btn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+
+/* aria-disabled (not disabled) so a focused button keeps focus when it turns off */
+.icon-btn[aria-disabled='true'] {
+  background: transparent;
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Text button (optionally with an icon) */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--control);
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font: 500 13px var(--font-mono);
+  white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    filter 0.15s;
+}
+
+.btn:hover {
+  background: var(--hover);
+}
+
+.btn-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent);
+  filter: brightness(1.1);
+}
+
+/* Quiet button (no border until hovered) */
+.btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+}
+
+.btn-small {
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+}
+
+/* aria-disabled (not disabled) so a focused button keeps focus when it turns off */
+.btn[aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
+/* ==========================================================================
+   06  WORKSPACE & CARDS
+   Phones: one column in reading order (content → preview → style).
+   Desktop (section 12): content + style on the left, preview on the right.
+   ========================================================================== */
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 16px var(--gutter) 48px;
+}
+
+.card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 14px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  font: 600 14px var(--font-mono);
+}
+
+.card-title:focus {
+  outline: none; /* focused only by the skip link */
+}
+
+.card-num {
+  color: var(--accent);
+}
+
+.card-foot {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* ==========================================================================
+   07  TYPE PICKER
+   Real radio buttons, drawn as chips (arrow keys move between them natively).
+   ========================================================================== */
+.type-picker {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.type-option {
+  position: relative;
+  display: block;
+}
+
+/* The radio stays in place (and focusable) but invisible; the chip shows its state */
+.type-input,
+.segment-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.type-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 60px;
+  padding: 8px 4px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--muted);
+  font: 500 12px var(--font-mono);
+  text-align: center;
+  transition:
+    border-color 0.15s,
+    color 0.15s;
+}
+
+.type-option:hover .type-chip {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.type-input:checked + .type-chip {
+  border-color: var(--accent);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.type-input:checked + .type-chip .icon {
+  color: var(--accent);
+}
+
+.type-input:focus-visible + .type-chip {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.type-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* ==========================================================================
+   08  FIELDS
+   ========================================================================== */
+.field-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  align-content: start; /* a taller neighbour (with a hint) must not stretch this field's input */
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.field-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 0;
+  color: var(--muted);
+  font: 500 12px var(--font-mono);
+}
+
+/* A <legend> isn't spaced by the fieldset's grid gap */
+legend.field-label {
+  margin-bottom: 6px;
+}
+
+.optional {
+  color: var(--faint);
+  font-weight: 400;
+}
+
+.field-input {
+  width: 100%;
+  min-height: var(--control);
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: 400 14px/1.45 var(--font-sans);
+}
+
+.field-input--area {
+  min-height: 96px;
+  resize: vertical;
+}
+
+/* Dropdowns: one consistent chevron in every browser, with room reserved so text never runs under it */
+select.field-input {
+  padding-right: 36px;
+  overflow: hidden;
+  background-image: var(--select-arrow);
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  appearance: none;
+}
+
+.field-input::placeholder {
+  color: var(--faint);
+  opacity: 1;
+}
+
+.field-input:focus-visible {
+  border-color: var(--accent);
+  outline-offset: 0;
+}
+
+.field-hint {
+  margin: 0;
+  color: var(--faint);
+  font-size: 12.5px;
+}
+
+/* Input with a button inside its right edge (show/hide password) */
+.field-with-button {
+  position: relative;
+}
+
+.field-with-button .field-input {
+  padding-right: 44px;
+}
+
+.field-button {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: calc(var(--control) - 4px);
+  height: calc(var(--control) - 4px);
+}
+
+/* Checkbox with text */
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.check-input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+/* "add https://" suggestion under the text field */
+.tip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px dashed var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* ==========================================================================
+   09  STYLE CONTROLS (colors, shape, margin)
+   ========================================================================== */
+.color-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.color-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.color-input {
+  width: 44px;
+  height: var(--control);
+  padding: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  cursor: pointer;
+  appearance: none;
+}
+
+.color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.color-input::-webkit-color-swatch {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.color-input::-moz-color-swatch {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.color-text {
+  display: grid;
+  line-height: 1.3;
+}
+
+.color-name {
+  color: var(--muted);
+  font: 500 12px var(--font-mono);
+}
+
+.color-set {
+  gap: 10px;
+}
+
+.field-hint.is-bad {
+  color: var(--danger);
+}
+
+/* Square / rounded / dots — radios drawn as a segmented control */
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--subtle);
+}
+
+.segment {
+  position: relative;
+}
+
+.segment-label {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  color: var(--muted);
+  font: 500 13px var(--font-mono);
+}
+
+.segment-input:checked + .segment-label {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 12%);
+}
+
+.segment-input:focus-visible + .segment-label {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* "choose image" row for a custom center symbol */
+.logo-upload {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.logo-file-name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--faint);
+  font: 12px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.range-input {
+  width: 100%;
+  height: var(--control);
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.field-label output {
+  color: var(--text);
+}
+
+/* ==========================================================================
+   10  PREVIEW (code, details, scan check, warnings, export)
+   ========================================================================== */
+.qr-frame {
+  display: grid;
+  place-items: center;
+  width: min(100%, 340px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+
+/* Checkerboard shows which parts of a transparent code are see-through */
+.qr-frame.is-transparent {
+  background: repeating-conic-gradient(var(--checker) 0% 25%, transparent 0% 50%) 0 0 / 16px 16px;
+}
+
+.qr-frame.is-empty {
+  padding: 24px;
+  border: 1px dashed var(--border-strong);
+  background: var(--subtle);
+}
+
+.qr-frame.is-error {
+  border-color: var(--danger);
+}
+
+.qr-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.qr-message {
+  max-width: 260px;
+  margin: 0;
+  color: var(--muted);
+  font: 500 13px/1.5 var(--font-mono);
+  text-align: center;
+}
+
+.is-error .qr-message {
+  color: var(--danger);
+}
+
+.qr-info {
+  margin: 0;
+  color: var(--faint);
+  font: 12px/1.6 var(--font-mono);
+  text-align: center;
+}
+
+/* Scan check result */
+.scan-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 0;
+  font: 500 12px var(--font-mono);
+  text-align: center;
+  transition: opacity 0.2s;
+}
+
+.scan-status[data-state='ok'] {
+  color: var(--accent);
+}
+
+.scan-status[data-state='fail'] {
+  color: var(--danger);
+}
+
+.scan-status[data-state='checking'] {
+  opacity: 0.45;
+}
+
+/* ✓ / ⚠ icons in the scan line and the warnings */
+.icon--status {
+  width: 16px;
+  height: 16px;
+}
+
+.warnings {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.icon--warn {
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+.export {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.export .btn {
+  flex: 1 1 0;
+}
+
+/* What's inside the code */
+.payload {
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.payload-summary {
+  color: var(--muted);
+  font: 500 12px var(--font-mono);
+  cursor: pointer;
+}
+
+.payload-text {
+  max-height: 220px;
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  overflow: auto;
+  border-radius: var(--radius-sm);
+  background: var(--subtle);
+  color: var(--text);
+  font: 12px/1.6 var(--font-mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* ==========================================================================
+   11  DIALOGS, HELP & TOAST
+   Native <dialog> opened with showModal(): Esc, focus trap and backdrop
+   come from the browser. Structure: .dialog-bar / .dialog-body / .dialog-foot
+   ========================================================================== */
+.dialog {
+  width: min(520px, 100% - 2 * var(--gutter));
+  max-height: min(85dvh, 760px);
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.dialog--wide {
+  width: min(680px, 100% - 2 * var(--gutter));
+}
+
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dialog::backdrop {
+  background: rgb(10 12 15 / 50%);
+  backdrop-filter: blur(2px);
+}
+
+.dialog-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--subtle);
+}
+
+/* Terminal window dots */
+.dialog-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.dialog-dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+.dialog-title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--text);
+  font: 500 13px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dialog-path {
+  color: var(--faint);
+}
+
+.dialog-close {
+  margin-left: auto;
+}
+
+.dialog-body {
+  flex: 1;
+  min-height: 0;
+  padding: 20px var(--gutter);
+  overflow-y: auto;
+}
+
+.dialog-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px var(--gutter);
+  border-top: 1px solid var(--border);
+}
+
+.dialog-hint {
+  margin-right: auto;
+  color: var(--faint);
+  font: 12px var(--font-mono);
+}
+
+/* Help content */
+.help-kicker {
+  margin: 0 0 4px;
+  color: var(--accent);
+  font: 500 12px var(--font-mono);
+}
+
+.help-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.help-lead {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.help-note {
+  margin: 12px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.help-section {
+  margin-top: 24px;
+}
+
+.help-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font: 600 14px var(--font-mono);
+}
+
+.help-num {
+  color: var(--accent);
+}
+
+.help-steps,
+.help-list {
+  margin: 0;
+  padding-left: 22px;
+}
+
+.help-steps li,
+.help-list li {
+  margin-bottom: 6px;
+  padding-left: 4px;
+}
+
+.help-steps li::marker {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+.help-list {
+  list-style-type: '›  ';
+}
+
+.help-list li::marker {
+  color: var(--accent);
+}
+
+/* Term / description rows */
+.help-defs {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.help-defs > div {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+}
+
+.help-defs > div + div {
+  border-top: 1px solid var(--border);
+}
+
+.help-defs dt {
+  font: 500 12.5px var(--font-mono);
+}
+
+.help-defs dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+/* Toast — uses the Popover API when available so it shows above dialogs */
+.toast {
+  position: fixed;
+  inset: auto auto calc(20px + env(safe-area-inset-bottom, 0px)) 50%;
+  z-index: 50;
+  max-width: calc(100% - 2 * var(--gutter));
+  margin: 0;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--text);
+  color: var(--bg);
+  font: 500 13px var(--font-mono);
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+  animation: toast-in 0.2s var(--ease);
+}
+
+/* Keep the popover hidden until app.js shows it */
+.toast[popover]:not(:popover-open) {
+  display: none;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 8px);
+  }
+}
+
+/* ==========================================================================
+   12  BREAKPOINTS
+   ========================================================================== */
+
+/* ---------- Tablet (≥600px) ---------- */
+@media (width >= 600px) {
+  :root {
+    --gutter: 24px;
+  }
+
+  .brand-tag {
+    display: inline;
+  }
+
+  .type-picker {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .field--full {
+    grid-column: 1 / -1;
+  }
+
+  .card {
+    padding: 20px;
+  }
+
+  .help-defs > div {
+    grid-template-columns: 170px 1fr;
+    gap: 16px;
+  }
+}
+
+/* ---------- Desktop (≥900px): preview stays in view on the right ---------- */
+@media (width >= 900px) {
+  .workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+    grid-template-areas:
+      'content preview'
+      'style preview';
+    align-items: start;
+    gap: 16px;
+    padding-top: 24px;
+  }
+
+  .card--content {
+    grid-area: content;
+  }
+
+  .card--style {
+    grid-area: style;
+  }
+
+  /* Pinned while the form scrolls; on short screens it scrolls inside itself
+     so the download buttons are never out of reach */
+  .card--preview {
+    position: sticky;
+    top: 16px;
+    grid-area: preview;
+    max-height: calc(100vh - 32px);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .type-picker {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (width >= 1040px) {
+  .type-picker {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* ==========================================================================
+   13  REDUCED MOTION
+   ========================================================================== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
